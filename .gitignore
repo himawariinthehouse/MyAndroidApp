@@ -1,0 +1,108 @@
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log/OS
+*.log
+.DS_Store
+
+# Android Studio generated files and folders
+.idea/
+.classpath
+.c9/
+*.class
+*.dex
+*.ear
+*.iml
+*.jar
+*.koala
+*.log
+*.nar
+*.swp
+*.war
+*.zip
+*.via
+.ctp/
+.factorypath
+.gradle
+.idea
+.nb-gradle/
+.nrepl-port
+.project
+.properties
+.pydevproject
+.settings/
+.springBeans
+.sts4-cache/
+/bin/
+/build/
+/builds/
+/out/
+/.gradle/
+/.idea
+/.idea_modules
+/.settings
+/.vscode
+/bin
+/dist
+/node_modules
+MANIFEST.MF
+*.iws
+*.jks
+*.keystore
+*.pro.user
+*.sublime-project
+*.sublime-workspace
+
+# Firebase/Google
+google-services.json
+
+# Sensitive or high-churn files:
+*.jks
+*.p12
+
+# Files for the ART/Dalvik VM
+*.dex
+*.odex
+*.oat
+*.ota
+*.vdex
+
+# Freeline
+freeline/
+freeline_project_description.json
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/readme.md
+
+# Version control
+*.orig
+.git/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Intellij
+*.iml
+*.iws
+*.ipr
+.idea/
+out/
+
+# Keystore files
+*.jks
+*.keystore
+
+# Google Play signing
+app/release/
+
+# misc
+misc/
