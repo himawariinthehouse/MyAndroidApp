@@ -18,6 +18,8 @@ local.properties
 *.ear
 *.iml
 *.jar
+# But allow gradle wrapper JAR
+!gradle/wrapper/gradle-wrapper.jar
 *.koala
 *.log
 *.nar
