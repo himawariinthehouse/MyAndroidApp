@@ -29,7 +29,7 @@ fun TransportScreen(navController: NavHostController) {
             modifier = Modifier.padding(16.dp)
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                imageVector = ArrowBack,
                 contentDescription = "返回"
             )
         }
@@ -66,7 +66,7 @@ fun TimeScreen(navController: NavHostController) {
             modifier = Modifier.padding(16.dp)
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                imageVector = ArrowBack,
                 contentDescription = "返回"
             )
         }
@@ -103,7 +103,7 @@ fun HealthScreen(navController: NavHostController) {
             modifier = Modifier.padding(16.dp)
         ) {
             Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                imageVector = ArrowBack,
                 contentDescription = "返回"
             )
         }
