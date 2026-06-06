@@ -39,7 +39,7 @@ APP_NAME="Gradle"
 APP_BASE_NAME=`basename "$0"`
 
 # Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+DEFAULT_JVM_OPTS='-Xmx64m -Xms64m'
 
 # Use the maximum available, or set MAX_FD != maximum.
 MAX_FD="maximum"
@@ -161,7 +161,7 @@ fi
 
 # Split the Java version string into an array to get the major version
 JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | cut -d'.' -f1`
-if [[ "$JAVA_VERSION" =~ "1." ]] ; then
+if echo "$JAVA_VERSION" | grep -q "1\." ; then
    JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | cut -d'.' -f2`
 fi
 
