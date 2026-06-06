@@ -161,7 +161,7 @@ fi
 
 # Split the Java version string into an array to get the major version
 JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | cut -d'.' -f1`
-if echo "$JAVA_VERSION" | grep -q "1\." ; then
+if echo "$JAVA_VERSION" | grep -q "^1\." ; then
    JAVA_MAJOR_VERSION=`echo $JAVA_VERSION | cut -d'.' -f2`
 fi
 
