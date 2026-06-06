@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,7 +28,7 @@ fun TransportScreen(navController: NavHostController) {
             modifier = Modifier.padding(16.dp)
         ) {
             Icon(
-                imageVector = ArrowBack,
+                imageVector = Icons.Filled.ArrowBack,
                 contentDescription = "返回"
             )
         }
@@ -66,7 +65,7 @@ fun TimeScreen(navController: NavHostController) {
             modifier = Modifier.padding(16.dp)
         ) {
             Icon(
-                imageVector = ArrowBack,
+                imageVector = Icons.Filled.ArrowBack,
                 contentDescription = "返回"
             )
         }
@@ -103,7 +102,7 @@ fun HealthScreen(navController: NavHostController) {
             modifier = Modifier.padding(16.dp)
         ) {
             Icon(
-                imageVector = ArrowBack,
+                imageVector = Icons.Filled.ArrowBack,
                 contentDescription = "返回"
             )
         }
