@@ -4,7 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,27 +202,28 @@ fun TransportScreen(navController: NavHostController) {
                 return@Button
             }
 
-            val location = getCurrentLocation(context)
-            if (location == null) {
-                Toast.makeText(context, "无法获取当前位置，请检查定位设置", Toast.LENGTH_SHORT).show()
-                return@Button
-            }
-
-            groups = groups.map { group ->
-                if (group.name == groupNameValue) {
-                    group.copy(
-                        locations = group.locations + PlaceLocation(
-                            name = trimmedPlaceName,
-                            latitude = location.latitude,
-                            longitude = location.longitude
-                        )
-                    )
-                } else {
-                    group
+            requestCurrentLocation(context) { location ->
+                if (location == null) {
+                    Toast.makeText(context, "无法获取当前位置，请检查定位设置", Toast.LENGTH_SHORT).show()
+                    return@requestCurrentLocation
                 }
+
+                groups = groups.map { group ->
+                    if (group.name == groupNameValue) {
+                        group.copy(
+                            locations = group.locations + PlaceLocation(
+                                name = trimmedPlaceName,
+                                latitude = location.latitude,
+                                longitude = location.longitude
+                            )
+                        )
+                    } else {
+                        group
+                    }
+                }
+                placeName = ""
+                copyMessage = "已保存当前位置到 $groupNameValue"
             }
-            placeName = ""
-            copyMessage = "已保存当前位置到 $groupNameValue"
         }) {
             Text("保存当前地点")
         }
@@ -300,7 +305,59 @@ fun TransportScreen(navController: NavHostController) {
     }
 }
 
-private fun getCurrentLocation(context: Context): Location? {
+private fun requestCurrentLocation(context: Context, callback: (Location?) -> Unit) {
+    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+    if (locationManager == null) {
+        callback(null)
+        return
+    }
+
+    getLastKnownLocation(context)?.let {
+        callback(it)
+        return
+    }
+
+    val mainHandler = Handler(Looper.getMainLooper())
+    val listener = object : LocationListener {
+        override fun onLocationChanged(location: Location) {
+            locationManager.removeUpdates(this)
+            mainHandler.removeCallbacksAndMessages(null)
+            callback(location)
+        }
+
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+        override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+    }
+
+    val providers = listOf(
+        LocationManager.GPS_PROVIDER,
+        LocationManager.NETWORK_PROVIDER,
+        LocationManager.PASSIVE_PROVIDER
+    )
+    var requested = false
+    providers.forEach { provider ->
+        try {
+            if (locationManager.isProviderEnabled(provider)) {
+                requested = true
+                locationManager.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+            }
+        } catch (_: SecurityException) {
+        }
+    }
+
+    if (!requested) {
+        callback(null)
+        return
+    }
+
+    mainHandler.postDelayed({
+        locationManager.removeUpdates(listener)
+        callback(null)
+    }, 8000)
+}
+
+private fun getLastKnownLocation(context: Context): Location? {
     val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
     val providers = listOf(
         LocationManager.GPS_PROVIDER,
