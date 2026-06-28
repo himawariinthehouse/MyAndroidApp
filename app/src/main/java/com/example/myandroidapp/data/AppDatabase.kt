@@ -5,10 +5,11 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [GaodeKeyEntity::class], version = 1, exportSchema = false)
+@Database(entities = [GaodeKeyEntity::class, PlaceEntity::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun gaodeKeyDao(): GaodeKeyDao
+    abstract fun placeDao(): PlaceDao
 
     companion object {
         @Volatile

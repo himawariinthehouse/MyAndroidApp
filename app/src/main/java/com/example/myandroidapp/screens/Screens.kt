@@ -19,13 +19,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -34,12 +33,15 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,9 +61,14 @@ import androidx.navigation.NavHostController
 import androidx.core.content.ContextCompat
 import com.example.myandroidapp.data.AppDatabase
 import com.example.myandroidapp.data.GaodeKeyEntity
+import com.example.myandroidapp.data.PlaceEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.net.URL
+import java.net.URLEncoder
 
 private data class PlaceLocation(
     val name: String,
@@ -74,21 +81,27 @@ private data class PlaceGroup(
     val locations: List<PlaceLocation>
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransportScreen(navController: NavHostController) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val database = remember { AppDatabase.getDatabase(context) }
     val dao = remember { database.gaodeKeyDao() }
+    val placeDao = remember { database.placeDao() }
 
     var mapKey by remember { mutableStateOf("") }
+    var placeName by remember { mutableStateOf("") }
+    var groupName by remember { mutableStateOf("") }
+    var groupNames by remember { mutableStateOf(listOf("默认分组")) }
+    var selectedGroupName by remember { mutableStateOf("默认分组") }
+    var groups by remember { mutableStateOf(listOf<PlaceGroup>()) }
+    var expandedGroups by remember { mutableStateOf(setOf<String>()) }
+    var copyMessage by remember { mutableStateOf("") }
+    var groupDropdownExpanded by remember { mutableStateOf(false) }
+    var isGettingLocation by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        val entity = withContext(Dispatchers.IO) { dao.getGaodeKey() }
-        if (entity != null) {
-            mapKey = entity.key
-        }
-    }
+    val clipboardManager = LocalClipboardManager.current
 
     val permissionGranted = remember {
         mutableStateOf(
@@ -107,19 +120,62 @@ fun TransportScreen(navController: NavHostController) {
         }
     }
 
-    var groupName by remember { mutableStateOf("") }
-    var placeName by remember { mutableStateOf("") }
-    var selectedGroupName by remember { mutableStateOf<String?>(null) }
-    var groups by remember { mutableStateOf(listOf<PlaceGroup>()) }
-    var expandedGroups by remember { mutableStateOf(setOf<String>()) }
-    var copyMessage by remember { mutableStateOf("") }
+    // 初始化：加载 API Key、分组和地点
+    LaunchedEffect(Unit) {
+        val keyEntity = withContext(Dispatchers.IO) { dao.getGaodeKey() }
+        if (keyEntity != null) {
+            mapKey = keyEntity.key
+        }
+        val savedGroupNames = withContext(Dispatchers.IO) { placeDao.getAllGroupNames() }
+        val savedPlaces = withContext(Dispatchers.IO) { placeDao.getAllPlaces() }
+        val grouped = savedPlaces.groupBy { it.groupName }.map { (name, places) ->
+            PlaceGroup(
+                name = name,
+                locations = places.map { PlaceLocation(it.name, it.latitude, it.longitude) }
+            )
+        }
+        groupNames = if (savedGroupNames.isEmpty()) listOf("默认分组") else savedGroupNames
+        groups = grouped
+        selectedGroupName = groupNames.first()
+    }
 
-    val clipboardManager = LocalClipboardManager.current
+    suspend fun refreshGroups() {
+        val names = withContext(Dispatchers.IO) { placeDao.getAllGroupNames() }
+        val places = withContext(Dispatchers.IO) { placeDao.getAllPlaces() }
+        groupNames = if (names.isEmpty()) listOf("默认分组") else names
+        groups = places.groupBy { it.groupName }.map { (name, placeList) ->
+            PlaceGroup(
+                name = name,
+                locations = placeList.map { PlaceLocation(it.name, it.latitude, it.longitude) }
+            )
+        }
+    }
+
+    suspend fun reverseGeocode(apiKey: String, lat: Double, lng: Double): String? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val location = "$lng,$lat"
+                val urlStr = "https://restapi.amap.com/v3/geocode/regeo?output=json&location=${URLEncoder.encode(location, "UTF-8")}&key=${URLEncoder.encode(apiKey, "UTF-8")}&radius=1000&extensions=base"
+                val url = URL(urlStr)
+                val reader = BufferedReader(url.openStream().bufferedReader())
+                val response = reader.readText()
+                reader.close()
+                val json = JSONObject(response)
+                if (json.optString("status") == "1") {
+                    json.getJSONObject("regeocode").optString("formatted_address")
+                } else null
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
@@ -164,20 +220,26 @@ fun TransportScreen(navController: NavHostController) {
             Button(onClick = {
                 if (!permissionGranted.value) {
                     locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                } else {
-                    Toast.makeText(context, "定位权限已授予", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                if (mapKey.trim().isEmpty()) {
+                    Toast.makeText(context, "请先设置地图 API Key", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
+                isGettingLocation = true
+                requestCurrentLocation(context) { location ->
+                    isGettingLocation = false
+                    if (location == null) {
+                        Toast.makeText(context, "无法获取当前位置", Toast.LENGTH_SHORT).show()
+                        return@requestCurrentLocation
+                    }
+                    scope.launch {
+                        val address = reverseGeocode(mapKey.trim(), location.latitude, location.longitude)
+                        placeName = address ?: "${location.latitude}, ${location.longitude}"
+                    }
                 }
             }) {
-                Text(if (permissionGranted.value) "定位权限已授予" else "请求定位权限")
-            }
-            Button(onClick = {
-                if (!permissionGranted.value) {
-                    locationLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                } else {
-                    Toast.makeText(context, "请使用“新增地点”按钮保存当前位置", Toast.LENGTH_SHORT).show()
-                }
-            }) {
-                Text("获取当前定位")
+                Text(if (isGettingLocation) "定位中..." else "获取当前定位")
             }
         }
 
@@ -195,9 +257,9 @@ fun TransportScreen(navController: NavHostController) {
             val trimmedName = groupName.trim()
             when {
                 trimmedName.isEmpty() -> Toast.makeText(context, "请输入分组名", Toast.LENGTH_SHORT).show()
-                groups.any { it.name == trimmedName } -> Toast.makeText(context, "该分组已存在", Toast.LENGTH_SHORT).show()
+                groupNames.contains(trimmedName) -> Toast.makeText(context, "该分组已存在", Toast.LENGTH_SHORT).show()
                 else -> {
-                    groups = groups + PlaceGroup(name = trimmedName, locations = emptyList())
+                    groupNames = groupNames + trimmedName
                     selectedGroupName = trimmedName
                     groupName = ""
                     Toast.makeText(context, "已新增分组", Toast.LENGTH_SHORT).show()
@@ -219,15 +281,34 @@ fun TransportScreen(navController: NavHostController) {
         )
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(text = "选择分组：", modifier = Modifier.weight(1f))
-            TextButton(onClick = {
-                if (groups.isNotEmpty()) {
-                    val currentIndex = groups.indexOfFirst { it.name == selectedGroupName }
-                    selectedGroupName = if (currentIndex == -1 || currentIndex == groups.lastIndex) groups.first().name else groups[currentIndex + 1].name
+        Text(text = "选择分组", fontSize = 14.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        ExposedDropdownMenuBox(
+            expanded = groupDropdownExpanded,
+            onExpandedChange = { groupDropdownExpanded = !groupDropdownExpanded }
+        ) {
+            OutlinedTextField(
+                value = selectedGroupName,
+                onValueChange = {},
+                readOnly = true,
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = groupDropdownExpanded) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
+            )
+            ExposedDropdownMenu(
+                expanded = groupDropdownExpanded,
+                onDismissRequest = { groupDropdownExpanded = false }
+            ) {
+                groupNames.forEach { name ->
+                    DropdownMenuItem(
+                        text = { Text(name) },
+                        onClick = {
+                            selectedGroupName = name
+                            groupDropdownExpanded = false
+                        }
+                    )
                 }
-            }) {
-                Text(selectedGroupName ?: "请先添加分组")
             }
         }
 
@@ -237,11 +318,7 @@ fun TransportScreen(navController: NavHostController) {
             val groupNameValue = selectedGroupName
 
             if (trimmedPlaceName.isEmpty()) {
-                Toast.makeText(context, "请输入地点名称", Toast.LENGTH_SHORT).show()
-                return@Button
-            }
-            if (groupNameValue.isNullOrEmpty()) {
-                Toast.makeText(context, "请选择一个分组", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "请先获取当前位置", Toast.LENGTH_SHORT).show()
                 return@Button
             }
             if (!permissionGranted.value) {
@@ -252,25 +329,25 @@ fun TransportScreen(navController: NavHostController) {
 
             requestCurrentLocation(context) { location ->
                 if (location == null) {
-                    Toast.makeText(context, "无法获取当前位置，请检查定位设置", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "无法获取当前位置", Toast.LENGTH_SHORT).show()
                     return@requestCurrentLocation
                 }
 
-                groups = groups.map { group ->
-                    if (group.name == groupNameValue) {
-                        group.copy(
-                            locations = group.locations + PlaceLocation(
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        placeDao.insert(
+                            PlaceEntity(
                                 name = trimmedPlaceName,
                                 latitude = location.latitude,
-                                longitude = location.longitude
+                                longitude = location.longitude,
+                                groupName = groupNameValue
                             )
                         )
-                    } else {
-                        group
                     }
+                    refreshGroups()
+                    placeName = ""
+                    copyMessage = "已保存位置到 $groupNameValue"
                 }
-                placeName = ""
-                copyMessage = "已保存当前位置到 $groupNameValue"
             }
         }) {
             Text("保存当前地点")
@@ -284,8 +361,8 @@ fun TransportScreen(navController: NavHostController) {
         if (groups.isEmpty()) {
             Text(text = "目前暂无分组，请先创建分组", fontSize = 14.sp)
         } else {
-            LazyColumn(modifier = Modifier.fillMaxHeight()) {
-                items(groups, key = { it.name }) { group ->
+            Column {
+                groups.forEach { group ->
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
