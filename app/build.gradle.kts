@@ -21,7 +21,19 @@ android {
         }
     }
 
+    signingConfigs {
+        create("debug") {
+            storeFile = file("${rootProject.projectDir}/keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

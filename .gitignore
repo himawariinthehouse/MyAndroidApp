@@ -102,6 +102,8 @@ out/
 # Keystore files
 *.jks
 *.keystore
+# But allow project debug keystore for consistent CI signing
+!keystore/debug.keystore
 
 # Google Play signing
 app/release/

@@ -408,12 +408,13 @@ fun TransportScreen(navController: NavHostController) {
                 }
 
                 scope.launch {
+                    val (gcjLat, gcjLng) = convertToGcj02(mapKey.trim(), location.latitude, location.longitude)
                     withContext(Dispatchers.IO) {
                         placeDao.insert(
                             PlaceEntity(
                                 name = trimmedPlaceName,
-                                latitude = location.latitude,
-                                longitude = location.longitude,
+                                latitude = gcjLat,
+                                longitude = gcjLng,
                                 groupName = groupNameValue
                             )
                         )
