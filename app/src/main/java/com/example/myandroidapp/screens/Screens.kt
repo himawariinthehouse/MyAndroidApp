@@ -41,9 +41,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.core.content.ContextCompat
+import com.example.myandroidapp.data.AppDatabase
+import com.example.myandroidapp.data.GaodeKeyEntity
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class PlaceLocation(
     val name: String,
@@ -70,6 +77,19 @@ private data class PlaceGroup(
 @Composable
 fun TransportScreen(navController: NavHostController) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val database = remember { AppDatabase.getDatabase(context) }
+    val dao = remember { database.gaodeKeyDao() }
+
+    var mapKey by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        val entity = withContext(Dispatchers.IO) { dao.getGaodeKey() }
+        if (entity != null) {
+            mapKey = entity.key
+        }
+    }
+
     val permissionGranted = remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(
@@ -108,6 +128,34 @@ fun TransportScreen(navController: NavHostController) {
         }
 
         Text(text = "交通页面", fontSize = 28.sp, modifier = Modifier.padding(bottom = 16.dp))
+
+        Text(text = "地图 API Key", fontSize = 16.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        OutlinedTextField(
+            value = mapKey,
+            onValueChange = { mapKey = it },
+            label = { Text("请输入高德地图 API Key") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = {
+            val trimmedKey = mapKey.trim()
+            if (trimmedKey.isEmpty()) {
+                Toast.makeText(context, "请输入有效的 API Key", Toast.LENGTH_SHORT).show()
+                return@Button
+            }
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    dao.insertOrUpdate(GaodeKeyEntity(id = 1, key = trimmedKey))
+                }
+                Toast.makeText(context, "地图 API Key 已保存", Toast.LENGTH_SHORT).show()
+            }
+        }) {
+            Text("保存 API Key")
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text(text = if (permissionGranted.value) "位置权限已授予" else "请授予定位权限以保存当前位置", fontSize = 14.sp)
         Spacer(modifier = Modifier.height(8.dp))
