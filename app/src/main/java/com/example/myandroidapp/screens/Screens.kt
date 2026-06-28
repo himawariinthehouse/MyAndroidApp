@@ -37,11 +37,13 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,6 +63,7 @@ import androidx.navigation.NavHostController
 import androidx.core.content.ContextCompat
 import com.example.myandroidapp.data.AppDatabase
 import com.example.myandroidapp.data.GaodeKeyEntity
+import com.example.myandroidapp.data.GroupEntity
 import com.example.myandroidapp.data.PlaceEntity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,6 +92,7 @@ fun TransportScreen(navController: NavHostController) {
     val database = remember { AppDatabase.getDatabase(context) }
     val dao = remember { database.gaodeKeyDao() }
     val placeDao = remember { database.placeDao() }
+    val groupDao = remember { database.groupDao() }
 
     var mapKey by remember { mutableStateOf("") }
     var placeName by remember { mutableStateOf("") }
@@ -100,6 +104,8 @@ fun TransportScreen(navController: NavHostController) {
     var copyMessage by remember { mutableStateOf("") }
     var groupDropdownExpanded by remember { mutableStateOf(false) }
     var isGettingLocation by remember { mutableStateOf(false) }
+    var showAddressDialog by remember { mutableStateOf(false) }
+    var addressList by remember { mutableStateOf(listOf<String>()) }
 
     val clipboardManager = LocalClipboardManager.current
 
@@ -126,7 +132,12 @@ fun TransportScreen(navController: NavHostController) {
         if (keyEntity != null) {
             mapKey = keyEntity.key
         }
-        val savedGroupNames = withContext(Dispatchers.IO) { placeDao.getAllGroupNames() }
+        // 确保“默认分组”存在
+        val existingGroups = withContext(Dispatchers.IO) { groupDao.getAllGroupNames() }
+        if (existingGroups.isEmpty()) {
+            withContext(Dispatchers.IO) { groupDao.insert(GroupEntity(name = "默认分组")) }
+        }
+        val savedGroupNames = withContext(Dispatchers.IO) { groupDao.getAllGroupNames() }
         val savedPlaces = withContext(Dispatchers.IO) { placeDao.getAllPlaces() }
         val grouped = savedPlaces.groupBy { it.groupName }.map { (name, places) ->
             PlaceGroup(
@@ -140,7 +151,7 @@ fun TransportScreen(navController: NavHostController) {
     }
 
     suspend fun refreshGroups() {
-        val names = withContext(Dispatchers.IO) { placeDao.getAllGroupNames() }
+        val names = withContext(Dispatchers.IO) { groupDao.getAllGroupNames() }
         val places = withContext(Dispatchers.IO) { placeDao.getAllPlaces() }
         groupNames = if (names.isEmpty()) listOf("默认分组") else names
         groups = places.groupBy { it.groupName }.map { (name, placeList) ->
@@ -151,22 +162,38 @@ fun TransportScreen(navController: NavHostController) {
         }
     }
 
-    suspend fun reverseGeocode(apiKey: String, lat: Double, lng: Double): String? {
+    suspend fun reverseGeocodeWithPois(apiKey: String, lat: Double, lng: Double): List<String> {
         return withContext(Dispatchers.IO) {
             try {
                 val location = "$lng,$lat"
-                val urlStr = "https://restapi.amap.com/v3/geocode/regeo?output=json&location=${URLEncoder.encode(location, "UTF-8")}&key=${URLEncoder.encode(apiKey, "UTF-8")}&radius=1000&extensions=base"
+                val urlStr = "https://restapi.amap.com/v3/geocode/regeo?output=json&location=${URLEncoder.encode(location, "UTF-8")}&key=${URLEncoder.encode(apiKey, "UTF-8")}&radius=50&extensions=all"
                 val url = URL(urlStr)
                 val reader = BufferedReader(url.openStream().bufferedReader())
                 val response = reader.readText()
                 reader.close()
                 val json = JSONObject(response)
+                val result = mutableListOf<String>()
                 if (json.optString("status") == "1") {
-                    json.getJSONObject("regeocode").optString("formatted_address")
-                } else null
+                    val regeocode = json.getJSONObject("regeocode")
+                    val mainAddress = regeocode.optString("formatted_address")
+                    if (mainAddress.isNotEmpty()) {
+                        result.add(mainAddress)
+                    }
+                    val pois = regeocode.optJSONArray("pois")
+                    if (pois != null) {
+                        for (i in 0 until pois.length()) {
+                            val poi = pois.getJSONObject(i)
+                            val poiName = poi.optString("name")
+                            if (poiName.isNotEmpty() && !result.contains(poiName)) {
+                                result.add(poiName)
+                            }
+                        }
+                    }
+                }
+                result
             } catch (e: Exception) {
                 e.printStackTrace()
-                null
+                emptyList()
             }
         }
     }
@@ -234,8 +261,15 @@ fun TransportScreen(navController: NavHostController) {
                         return@requestCurrentLocation
                     }
                     scope.launch {
-                        val address = reverseGeocode(mapKey.trim(), location.latitude, location.longitude)
-                        placeName = address ?: "${location.latitude}, ${location.longitude}"
+                        val addresses = reverseGeocodeWithPois(mapKey.trim(), location.latitude, location.longitude)
+                        if (addresses.size > 1) {
+                            addressList = addresses
+                            showAddressDialog = true
+                        } else if (addresses.isNotEmpty()) {
+                            placeName = addresses.first()
+                        } else {
+                            placeName = "${location.latitude}, ${location.longitude}"
+                        }
                     }
                 }
             }) {
@@ -259,10 +293,15 @@ fun TransportScreen(navController: NavHostController) {
                 trimmedName.isEmpty() -> Toast.makeText(context, "请输入分组名", Toast.LENGTH_SHORT).show()
                 groupNames.contains(trimmedName) -> Toast.makeText(context, "该分组已存在", Toast.LENGTH_SHORT).show()
                 else -> {
-                    groupNames = groupNames + trimmedName
-                    selectedGroupName = trimmedName
-                    groupName = ""
-                    Toast.makeText(context, "已新增分组", Toast.LENGTH_SHORT).show()
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            groupDao.insert(GroupEntity(name = trimmedName))
+                        }
+                        refreshGroups()
+                        selectedGroupName = trimmedName
+                        groupName = ""
+                        Toast.makeText(context, "已新增分组", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }) {
@@ -427,6 +466,45 @@ fun TransportScreen(navController: NavHostController) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = copyMessage, fontSize = 14.sp)
         }
+    }
+
+    // 地址选择弹框
+    if (showAddressDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddressDialog = false },
+            title = { Text("选择地址") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    addressList.forEach { address ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    placeName = address
+                                    showAddressDialog = false
+                                },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(
+                                text = address,
+                                modifier = Modifier.padding(12.dp),
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAddressDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }
 
