@@ -294,8 +294,8 @@ fun TransportScreen(navController: NavHostController) {
                         Toast.makeText(context, "无法获取当前位置", Toast.LENGTH_SHORT).show()
                         return@requestCurrentLocation
                     }
-                    val (gcjLat, gcjLng) = convertToGcj02(mapKey.trim(), location.latitude, location.longitude)
                     scope.launch {
+                        val (gcjLat, gcjLng) = convertToGcj02(mapKey.trim(), location.latitude, location.longitude)
                         val addresses = reverseGeocodeWithPois(mapKey.trim(), gcjLat, gcjLng)
                         if (addresses.size > 1) {
                             addressList = addresses
