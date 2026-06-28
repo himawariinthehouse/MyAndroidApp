@@ -162,6 +162,40 @@ fun TransportScreen(navController: NavHostController) {
         }
     }
 
+    /**
+     * WGS84 坐标转 GCJ02 坐标（高德坐标系）
+     * 使用高德坐标转换 API
+     * @return Pair(gcjLat, gcjLng) 或失败时返回原始坐标
+     */
+    suspend fun convertToGcj02(apiKey: String, lat: Double, lng: Double): Pair<Double, Double> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val coords = "$lng,$lat"
+                val urlStr = "https://restapi.amap.com/v3/assistant/coordinate/convert?output=json&coordsys=gps&locations=${URLEncoder.encode(coords, "UTF-8")}&key=${URLEncoder.encode(apiKey, "UTF-8")}"
+                val url = URL(urlStr)
+                val reader = BufferedReader(url.openStream().bufferedReader())
+                val response = reader.readText()
+                reader.close()
+                val json = JSONObject(response)
+                if (json.optString("status") == "1") {
+                    val locations = json.optString("locations")
+                    if (locations.isNotEmpty()) {
+                        val parts = locations.split(",")
+                        if (parts.size == 2) {
+                            val gcjLng = parts[0].toDouble()
+                            val gcjLat = parts[1].toDouble()
+                            return@withContext Pair(gcjLat, gcjLng)
+                        }
+                    }
+                }
+                Pair(lat, lng)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Pair(lat, lng)
+            }
+        }
+    }
+
     suspend fun reverseGeocodeWithPois(apiKey: String, lat: Double, lng: Double): List<String> {
         return withContext(Dispatchers.IO) {
             try {
@@ -260,15 +294,16 @@ fun TransportScreen(navController: NavHostController) {
                         Toast.makeText(context, "无法获取当前位置", Toast.LENGTH_SHORT).show()
                         return@requestCurrentLocation
                     }
+                    val (gcjLat, gcjLng) = convertToGcj02(mapKey.trim(), location.latitude, location.longitude)
                     scope.launch {
-                        val addresses = reverseGeocodeWithPois(mapKey.trim(), location.latitude, location.longitude)
+                        val addresses = reverseGeocodeWithPois(mapKey.trim(), gcjLat, gcjLng)
                         if (addresses.size > 1) {
                             addressList = addresses
                             showAddressDialog = true
                         } else if (addresses.isNotEmpty()) {
                             placeName = addresses.first()
                         } else {
-                            placeName = "${location.latitude}, ${location.longitude}"
+                            placeName = "$gcjLat, $gcjLng"
                         }
                     }
                 }
