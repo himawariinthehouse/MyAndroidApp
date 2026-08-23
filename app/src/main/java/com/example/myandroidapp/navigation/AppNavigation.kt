@@ -6,6 +6,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.myandroidapp.screens.HomeScreen
+import com.example.myandroidapp.screens.NewStockCalendarScreen
 import com.example.myandroidapp.screens.TransportScreen
 import com.example.myandroidapp.screens.TimeScreen
 import com.example.myandroidapp.screens.HealthScreen
@@ -28,6 +29,9 @@ fun AppNavigation() {
         }
         composable(Screen.Health.route) {
             HealthScreen(navController)
+        }
+        composable(Screen.StockCalendar.route) {
+            NewStockCalendarScreen(navController)
         }
     }
 }

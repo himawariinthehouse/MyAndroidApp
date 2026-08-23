@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.core.content.ContextCompat
+import com.example.myandroidapp.navigation.Screen
 import com.example.myandroidapp.data.AppDatabase
 import com.example.myandroidapp.data.GaodeKeyEntity
 import com.example.myandroidapp.data.GroupEntity
@@ -688,6 +689,13 @@ fun TimeScreen(navController: NavHostController) {
                 text = "这是时间相关的内容",
                 fontSize = 16.sp
             )
+            Spacer(modifier = Modifier.height(32.dp))
+            Button(
+                onClick = { navController.navigate(Screen.StockCalendar.route) },
+                modifier = Modifier.padding(horizontal = 20.dp)
+            ) {
+                Text("新股日历", fontSize = 18.sp)
+            }
         }
     }
 }
