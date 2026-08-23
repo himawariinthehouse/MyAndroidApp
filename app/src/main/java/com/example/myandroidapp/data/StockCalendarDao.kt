@@ -14,4 +14,7 @@ interface StockCalendarDao {
 
     @Query("SELECT COUNT(*) FROM stock_calendar")
     suspend fun count(): Int
+
+    @Query("UPDATE stock_calendar SET calendarEventId = :eventId WHERE type = :type AND securityCode = :securityCode")
+    suspend fun updateCalendarEventId(type: String, securityCode: String, eventId: Long)
 }

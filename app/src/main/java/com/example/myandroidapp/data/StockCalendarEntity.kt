@@ -11,5 +11,6 @@ data class StockCalendarEntity(
     val securityCode: String,
     val name: String,
     val issueDate: String,
-    val market: String
+    val market: String,
+    val calendarEventId: Long? = null
 )
