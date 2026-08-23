@@ -237,7 +237,7 @@ private fun fetchJson(urlStr: String): String? {
     }
 }
 
-suspend fun fetchNewIssues(): List<NewIssueItem> = withContext(Dispatchers.IO) {
+private suspend fun fetchNewIssues(): List<NewIssueItem> = withContext(Dispatchers.IO) {
     val today = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date())
     val items = mutableListOf<NewIssueItem>()
 
