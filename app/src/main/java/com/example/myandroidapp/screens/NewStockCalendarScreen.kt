@@ -84,6 +84,7 @@ fun NewStockCalendarScreen(navController: NavHostController) {
         )
     }
     var pendingCalendarEntity by remember { mutableStateOf<StockCalendarEntity?>(null) }
+    var pendingBatchAdd by remember { mutableStateOf(false) }
 
     fun refreshSaved() {
         scope.launch {
@@ -106,14 +107,50 @@ fun NewStockCalendarScreen(navController: NavHostController) {
         }
     }
 
+    fun doAddCalendarAll() {
+        scope.launch {
+            val pending = savedItems.filter { it.calendarEventId == null }
+            if (pending.isEmpty()) {
+                Toast.makeText(context, "所有已保存的新股都已添加日历", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            var success = 0
+            var failed = 0
+            for (entity in pending) {
+                val eventId = addIssueToCalendar(context, entity)
+                if (eventId != null) {
+                    withContext(Dispatchers.IO) {
+                        dao.updateCalendarEventId(entity.type, entity.securityCode, eventId)
+                    }
+                    success++
+                } else {
+                    failed++
+                }
+            }
+            refreshSaved()
+            Toast.makeText(
+                context,
+                "一键添加完成: 成功 $success 条, 失败 $failed 条",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     val calendarPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         calendarPermissionGranted = granted
         if (granted) {
-            pendingCalendarEntity?.let { doAddCalendar(it) }
-            pendingCalendarEntity = null
+            if (pendingBatchAdd) {
+                pendingBatchAdd = false
+                doAddCalendarAll()
+            } else {
+                pendingCalendarEntity?.let { doAddCalendar(it) }
+                pendingCalendarEntity = null
+            }
         } else {
+            pendingBatchAdd = false
+            pendingCalendarEntity = null
             Toast.makeText(context, "未授予日历权限，无法添加日历", Toast.LENGTH_SHORT).show()
         }
     }
@@ -213,6 +250,23 @@ fun NewStockCalendarScreen(navController: NavHostController) {
             fontSize = 18.sp,
             modifier = Modifier.padding(bottom = 8.dp)
         )
+        if (savedItems.any { it.calendarEventId == null }) {
+            Button(
+                onClick = {
+                    if (!calendarPermissionGranted) {
+                        pendingBatchAdd = true
+                        calendarPermissionLauncher.launch(Manifest.permission.WRITE_CALENDAR)
+                    } else {
+                        doAddCalendarAll()
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            ) {
+                Text("一键添加未添加日历的新股")
+            }
+        }
         if (savedItems.isEmpty()) {
             Text(text = "暂无已保存的数据，请先获取并一键保存", fontSize = 14.sp)
         } else {
