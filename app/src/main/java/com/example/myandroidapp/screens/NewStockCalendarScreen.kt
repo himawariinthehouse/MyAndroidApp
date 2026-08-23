@@ -84,24 +84,14 @@ fun NewStockCalendarScreen(navController: NavHostController) {
         )
     }
     var pendingCalendarEntity by remember { mutableStateOf<StockCalendarEntity?>(null) }
-    val calendarPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        calendarPermissionGranted = granted
-        if (granted) {
-            pendingCalendarEntity?.let { addCalendar(it) }
-            pendingCalendarEntity = null
-        } else {
-            Toast.makeText(context, "未授予日历权限，无法添加日历", Toast.LENGTH_SHORT).show()
+
+    fun refreshSaved() {
+        scope.launch {
+            savedItems = withContext(Dispatchers.IO) { dao.getAll() }
         }
     }
 
-    fun addCalendar(entity: StockCalendarEntity) {
-        if (!calendarPermissionGranted) {
-            pendingCalendarEntity = entity
-            calendarPermissionLauncher.launch(Manifest.permission.WRITE_CALENDAR)
-            return
-        }
+    fun doAddCalendar(entity: StockCalendarEntity) {
         scope.launch {
             val eventId = addIssueToCalendar(context, entity)
             if (eventId != null) {
@@ -116,9 +106,15 @@ fun NewStockCalendarScreen(navController: NavHostController) {
         }
     }
 
-    fun refreshSaved() {
-        scope.launch {
-            savedItems = withContext(Dispatchers.IO) { dao.getAll() }
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        calendarPermissionGranted = granted
+        if (granted) {
+            pendingCalendarEntity?.let { doAddCalendar(it) }
+            pendingCalendarEntity = null
+        } else {
+            Toast.makeText(context, "未授予日历权限，无法添加日历", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -228,7 +224,14 @@ fun NewStockCalendarScreen(navController: NavHostController) {
                     date = entity.issueDate,
                     market = entity.market,
                     calendarEventId = entity.calendarEventId,
-                    onAddCalendar = { addCalendar(entity) }
+                    onAddCalendar = {
+                        if (!calendarPermissionGranted) {
+                            pendingCalendarEntity = entity
+                            calendarPermissionLauncher.launch(Manifest.permission.WRITE_CALENDAR)
+                        } else {
+                            doAddCalendar(entity)
+                        }
+                    }
                 )
             }
         }
