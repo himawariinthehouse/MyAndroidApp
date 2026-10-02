@@ -8,7 +8,10 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.media.MediaMetadata
 import android.media.MediaPlayer
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -39,12 +42,14 @@ class SilentAudioService : Service() {
     }
 
     private var mediaPlayer: MediaPlayer? = null
+    private var mediaSession: MediaSession? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        initMediaSession()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -74,13 +79,70 @@ class SilentAudioService : Service() {
         isRunning = true
     }
 
-    private fun startSilentPlayback() {
-        if (mediaPlayer != null) return
-        mediaPlayer = MediaPlayer.create(this, R.raw.silent_audio)?.apply {
-            isLooping = true
-            setVolume(0f, 0f)
-            start()
+    /** 初始化 MediaSession，使播放器显示在系统控制中心 */
+    private fun initMediaSession() {
+        mediaSession = MediaSession(this, "SilentAudioSession").apply {
+            setFlags(
+                MediaSession.FLAG_HANDLES_MEDIA_BUTTONS or
+                    MediaSession.FLAG_HANDLES_TRANSPORT_CONTROLS
+            )
+            setCallback(sessionCallback)
+            setSessionActivity(
+                PendingIntent.getActivity(
+                    this@SilentAudioService,
+                    0,
+                    Intent(this@SilentAudioService, MainActivity::class.java),
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+            isActive = true
+            setMetadata(buildMediaMetadata())
+            setPlaybackState(buildPlaybackState(PlaybackState.STATE_PLAYING))
         }
+    }
+
+    private val sessionCallback = object : MediaSession.Callback() {
+        override fun onPlay() {
+            startSilentPlayback()
+        }
+
+        override fun onPause() {
+            mediaPlayer?.pause()
+            updatePlaybackState(PlaybackState.STATE_PAUSED)
+        }
+
+        override fun onStop() {
+            stopSelf()
+        }
+    }
+
+    private fun buildMediaMetadata() = MediaMetadata.Builder()
+        .putString(MediaMetadata.METADATA_KEY_TITLE, "保持后台运行")
+        .putString(MediaMetadata.METADATA_KEY_ARTIST, getString(R.string.app_name))
+        .build()
+
+    private fun buildPlaybackState(state: Int) = PlaybackState.Builder()
+        .setActions(
+            PlaybackState.ACTION_PLAY or
+                PlaybackState.ACTION_PAUSE or
+                PlaybackState.ACTION_STOP
+        )
+        .setState(state, PlaybackState.PLAYBACK_POSITION_UNKNOWN, 1f)
+        .build()
+
+    private fun updatePlaybackState(state: Int) {
+        mediaSession?.setPlaybackState(buildPlaybackState(state))
+    }
+
+    private fun startSilentPlayback() {
+        if (mediaPlayer == null) {
+            mediaPlayer = MediaPlayer.create(this, R.raw.silent_audio)?.apply {
+                isLooping = true
+                setVolume(0f, 0f)
+            }
+        }
+        mediaPlayer?.start()
+        updatePlaybackState(PlaybackState.STATE_PLAYING)
     }
 
     private fun buildNotification(): Notification {
@@ -121,6 +183,9 @@ class SilentAudioService : Service() {
     override fun onDestroy() {
         mediaPlayer?.release()
         mediaPlayer = null
+        mediaSession?.isActive = false
+        mediaSession?.release()
+        mediaSession = null
         isRunning = false
         super.onDestroy()
     }
