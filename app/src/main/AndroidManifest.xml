@@ -10,6 +10,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+        MEDIA_CONTENT_CONTROL 为 signature|privileged 级别权限，仅系统应用可获得，
+        第三方应用声明无效。本媒体控制中心功能实际依赖 MediaSessionCompat + MediaStyle
+        通知实现，并不依赖此权限。
+    -->
     <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL" />
 
     <application
@@ -35,7 +40,20 @@
         <service
             android:name=".service.SilentAudioService"
             android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </service>
+
+        <!-- 接收系统媒体按键广播（耳机线控/蓝牙/锁屏按键），并转发给播放服务 -->
+        <receiver
+            android:name="androidx.media.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
