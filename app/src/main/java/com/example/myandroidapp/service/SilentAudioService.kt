@@ -11,12 +11,13 @@ import android.media.MediaPlayer
 import android.os.Build
 import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat
+import android.support.v4.media.MediaBrowserServiceCompat
 import android.support.v4.media.MediaMetadataCompat
-import android.support.v4.media.session.MediaBrowserServiceCompat
-import android.support.v4.media.session.MediaButtonReceiver
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
+import androidx.media.session.MediaButtonReceiver
 import com.example.myandroidapp.MainActivity
 import com.example.myandroidapp.R
 
@@ -107,6 +108,8 @@ class SilentAudioService : MediaBrowserServiceCompat() {
             setMetadata(buildMediaMetadata())
             setPlaybackState(buildPlaybackState(PlaybackStateCompat.STATE_PLAYING))
         }
+        // 将会话 token 关联到浏览服务，供客户端（系统控制中心/车机等）发现并控制播放
+        mediaSession?.let { setSessionToken(it.sessionToken) }
     }
 
     /** 会话回调：响应控制中心卡片、锁屏、耳机线控等系统媒体按键 */
@@ -212,7 +215,7 @@ class SilentAudioService : MediaBrowserServiceCompat() {
         )
         // 根据当前播放状态动态切换播放/暂停按钮
         val playing = mediaPlayer?.isPlaying == true
-        val style = NotificationCompat.MediaStyle()
+        val style = MediaNotificationCompat.MediaStyle()
             .setMediaSession(mediaSession?.sessionToken)
             .setShowActionsInCompactView(0, 1, 2)
             .setShowCancelButton(true)
@@ -267,9 +270,9 @@ class SilentAudioService : MediaBrowserServiceCompat() {
     override fun onGetRoot(clientPackageName: String, clientUid: Int, rootHints: Bundle?): BrowserRoot =
         BrowserRoot("silent_audio_root", null)
 
-    override fun onLoadChildren(parentId: String, result: Result<MutableList<MediaBrowserCompat.MediaItem>>) {
+    override fun onLoadChildren(parentId: String, result: Result<List<MediaBrowserCompat.MediaItem>>) {
         // 无媒体浏览内容，返回空列表
-        result.sendResult(mutableListOf())
+        result.sendResult(emptyList())
     }
 
     override fun onDestroy() {
