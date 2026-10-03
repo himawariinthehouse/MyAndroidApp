@@ -225,6 +225,8 @@ class SilentAudioService : MediaBrowserServiceCompat() {
             .setContentText("正在播放静音音频")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(contentIntent)
+            // 锁屏界面需要 PUBLIC 可见性才能展示媒体卡片与控制按钮
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addAction(
                 android.R.drawable.ic_media_previous,
                 "上一首",
